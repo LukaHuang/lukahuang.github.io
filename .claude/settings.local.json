@@ -6,7 +6,8 @@
       "Bash(pip install:*)",
       "Bash(ls:*)",
       "Bash(find:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(mkdir:*)"
     ],
     "deny": []
   }
