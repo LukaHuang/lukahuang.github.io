@@ -3,7 +3,11 @@ class SudokuGame {
         this.board = Array(9).fill().map(() => Array(9).fill(0));
         this.solution = Array(9).fill().map(() => Array(9).fill(0));
         this.givenCells = new Set();
-        this.selectedCell = null;
+        this.selectedCell = { row: 4, col: 4 }; // 預設選中中間格子
+        this.hintsRemaining = 3;
+        this.startTime = null;
+        this.timerInterval = null;
+        this.difficulty = 'medium';
         this.init();
     }
 
@@ -11,6 +15,8 @@ class SudokuGame {
         this.createBoard();
         this.bindEvents();
         this.generatePuzzle();
+        this.startTimer();
+        this.updateHintDisplay();
     }
 
     createBoard() {
@@ -36,9 +42,15 @@ class SudokuGame {
         });
 
         // 遊戲控制按鈕
-        document.getElementById('new-game').addEventListener('click', () => this.generatePuzzle());
+        document.getElementById('new-game').addEventListener('click', () => this.newGame());
         document.getElementById('reset-game').addEventListener('click', () => this.resetGame());
         document.getElementById('check-solution').addEventListener('click', () => this.checkSolution());
+        document.getElementById('hint-btn').addEventListener('click', () => this.giveHint());
+        
+        // 難度選擇
+        document.getElementById('difficulty').addEventListener('change', (e) => {
+            this.difficulty = e.target.value;
+        });
 
         // 鍵盤輸入
         document.addEventListener('keydown', (e) => this.handleKeyboard(e));
@@ -47,20 +59,51 @@ class SudokuGame {
     selectCell(e) {
         const row = parseInt(e.target.dataset.row);
         const col = parseInt(e.target.dataset.col);
+        this.setSelectedCell(row, col);
+    }
 
-        // 移除之前選中的樣式
-        document.querySelectorAll('.sudoku-cell').forEach(cell => {
-            cell.classList.remove('selected');
-        });
+    setSelectedCell(row, col) {
+        // 移除所有高亮
+        this.clearHighlights();
 
-        // 如果點擊的是已給定的數字，不允許選擇
-        if (this.givenCells.has(`${row}-${col}`)) {
-            return;
-        }
-
-        // 選中新的格子
-        e.target.classList.add('selected');
         this.selectedCell = { row, col };
+        
+        // 更新視覺效果
+        this.updateCellHighlights();
+        this.clearMessage();
+    }
+
+    clearHighlights() {
+        document.querySelectorAll('.sudoku-cell').forEach(cell => {
+            cell.classList.remove('selected', 'highlight-same', 'highlight-related');
+        });
+    }
+
+    updateCellHighlights() {
+        const cells = document.querySelectorAll('.sudoku-cell');
+        const { row, col } = this.selectedCell;
+        const selectedValue = this.board[row][col];
+
+        cells.forEach((cell, index) => {
+            const cellRow = Math.floor(index / 9);
+            const cellCol = index % 9;
+            
+            // 選中的格子
+            if (cellRow === row && cellCol === col) {
+                cell.classList.add('selected');
+            }
+            // 同行、同列、同3x3區塊
+            else if (cellRow === row || cellCol === col || 
+                     (Math.floor(cellRow / 3) === Math.floor(row / 3) && 
+                      Math.floor(cellCol / 3) === Math.floor(col / 3))) {
+                cell.classList.add('highlight-related');
+            }
+            
+            // 相同數字高亮
+            if (selectedValue !== 0 && this.board[cellRow][cellCol] === selectedValue) {
+                cell.classList.add('highlight-same');
+            }
+        });
     }
 
     inputNumber(e) {
@@ -72,32 +115,138 @@ class SudokuGame {
         const number = parseInt(e.target.dataset.number);
         const { row, col } = this.selectedCell;
 
+        // 不能修改已給定的數字
+        if (this.givenCells.has(`${row}-${col}`)) {
+            this.showMessage('不能修改已給定的數字', 'error');
+            return;
+        }
+
+        const oldValue = this.board[row][col];
+
         if (number === 0) {
             // 清除數字
             this.board[row][col] = 0;
+            this.updateDisplay();
+            this.updateCellHighlights();
         } else {
-            // 輸入數字
-            this.board[row][col] = number;
+            // 檢查是否是正確答案
+            const isCorrect = this.solution[row][col] === number;
+            
+            if (isCorrect) {
+                this.board[row][col] = number;
+                this.addCorrectAnimation(row, col);
+                this.updateDisplay();
+                this.updateCellHighlights();
+                
+                // 檢查是否完成
+                setTimeout(() => {
+                    if (this.isPuzzleComplete()) {
+                        this.onPuzzleComplete();
+                    }
+                }, 300);
+            } else {
+                // 錯誤輸入，顯示錯誤動畫但不保存
+                this.addErrorAnimation(row, col);
+                this.showMessage('這個數字不正確，請再試試', 'error');
+                setTimeout(() => this.clearMessage(), 2000);
+            }
         }
+    }
 
-        this.updateDisplay();
-        this.clearMessage();
+    addCorrectAnimation(row, col) {
+        const cellIndex = row * 9 + col;
+        const cell = document.querySelectorAll('.sudoku-cell')[cellIndex];
+        cell.classList.add('correct-input');
+        setTimeout(() => {
+            cell.classList.remove('correct-input');
+        }, 600);
+    }
+
+    addErrorAnimation(row, col) {
+        const cellIndex = row * 9 + col;
+        const cell = document.querySelectorAll('.sudoku-cell')[cellIndex];
+        cell.classList.add('error');
+        setTimeout(() => {
+            cell.classList.remove('error');
+        }, 500);
     }
 
     handleKeyboard(e) {
+        e.preventDefault();
+        
         if (!this.selectedCell) return;
 
+        const { row, col } = this.selectedCell;
         const key = e.key;
+
+        // 數字輸入
         if (key >= '1' && key <= '9') {
             const number = parseInt(key);
-            const { row, col } = this.selectedCell;
-            this.board[row][col] = number;
-            this.updateDisplay();
-        } else if (key === 'Delete' || key === 'Backspace') {
-            const { row, col } = this.selectedCell;
+            this.inputNumberDirect(number);
+        } 
+        // 清除
+        else if (key === 'Delete' || key === 'Backspace' || key === '0') {
+            this.inputNumberDirect(0);
+        }
+        // 方向鍵導航
+        else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) {
+            this.handleArrowKey(key);
+        }
+    }
+
+    inputNumberDirect(number) {
+        const { row, col } = this.selectedCell;
+
+        if (this.givenCells.has(`${row}-${col}`)) {
+            this.showMessage('不能修改已給定的數字', 'error');
+            return;
+        }
+
+        if (number === 0) {
             this.board[row][col] = 0;
             this.updateDisplay();
+            this.updateCellHighlights();
+        } else {
+            const isCorrect = this.solution[row][col] === number;
+            
+            if (isCorrect) {
+                this.board[row][col] = number;
+                this.addCorrectAnimation(row, col);
+                this.updateDisplay();
+                this.updateCellHighlights();
+                
+                setTimeout(() => {
+                    if (this.isPuzzleComplete()) {
+                        this.onPuzzleComplete();
+                    }
+                }, 300);
+            } else {
+                this.addErrorAnimation(row, col);
+                this.showMessage('這個數字不正確，請再試試', 'error');
+                setTimeout(() => this.clearMessage(), 2000);
+            }
         }
+    }
+
+    handleArrowKey(key) {
+        let { row, col } = this.selectedCell;
+        
+        switch(key) {
+            case 'ArrowUp':
+                row = Math.max(0, row - 1);
+                break;
+            case 'ArrowDown':
+                row = Math.min(8, row + 1);
+                break;
+            case 'ArrowLeft':
+                col = Math.max(0, col - 1);
+                break;
+            case 'ArrowRight':
+                col = Math.min(8, col + 1);
+                break;
+        }
+        
+        this.setSelectedCell(row, col);
     }
 
     updateDisplay() {
@@ -111,49 +260,81 @@ class SudokuGame {
                 
                 cell.textContent = value === 0 ? '' : value;
                 
-                // 移除錯誤樣式
-                cell.classList.remove('error');
-                
-                // 檢查衝突
-                if (value !== 0 && this.hasConflict(i, j, value)) {
-                    cell.classList.add('error');
+                // 移除錯誤樣式（現在只在動畫時使用）
+                if (!cell.classList.contains('error')) {
+                    cell.classList.remove('error');
                 }
             }
         }
     }
 
-    hasConflict(row, col, num) {
-        // 檢查行
-        for (let j = 0; j < 9; j++) {
-            if (j !== col && this.board[row][j] === num) {
-                return true;
-            }
+    giveHint() {
+        if (this.hintsRemaining <= 0) {
+            this.showMessage('提示次數已用完', 'error');
+            return;
         }
 
-        // 檢查列
-        for (let i = 0; i < 9; i++) {
-            if (i !== row && this.board[i][col] === num) {
-                return true;
-            }
+        if (!this.selectedCell) {
+            this.showMessage('請先選擇一個格子', 'error');
+            return;
         }
 
-        // 檢查3x3方格
-        const startRow = Math.floor(row / 3) * 3;
-        const startCol = Math.floor(col / 3) * 3;
+        const { row, col } = this.selectedCell;
+
+        if (this.givenCells.has(`${row}-${col}`)) {
+            this.showMessage('這個數字已經是給定的', 'error');
+            return;
+        }
+
+        if (this.board[row][col] !== 0) {
+            this.showMessage('這個格子已經有數字了', 'error');
+            return;
+        }
+
+        // 給出提示
+        this.board[row][col] = this.solution[row][col];
+        this.hintsRemaining--;
+        this.updateHintDisplay();
+        this.addCorrectAnimation(row, col);
+        this.updateDisplay();
+        this.updateCellHighlights();
         
-        for (let i = startRow; i < startRow + 3; i++) {
-            for (let j = startCol; j < startCol + 3; j++) {
-                if ((i !== row || j !== col) && this.board[i][j] === num) {
-                    return true;
-                }
-            }
-        }
+        this.showMessage(`提示已給出！還剩 ${this.hintsRemaining} 次提示`, 'success');
 
-        return false;
+        if (this.isPuzzleComplete()) {
+            setTimeout(() => this.onPuzzleComplete(), 300);
+        }
     }
 
-    isValidMove(row, col, num) {
-        return !this.hasConflict(row, col, num);
+    updateHintDisplay() {
+        document.getElementById('hint-count').textContent = this.hintsRemaining;
+    }
+
+    startTimer() {
+        this.startTime = Date.now();
+        this.timerInterval = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
+            const minutes = Math.floor(elapsed / 60);
+            const seconds = elapsed % 60;
+            document.getElementById('timer').textContent = 
+                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }, 1000);
+    }
+
+    stopTimer() {
+        if (this.timerInterval) {
+            clearInterval(this.timerInterval);
+            this.timerInterval = null;
+        }
+    }
+
+    newGame() {
+        this.stopTimer();
+        this.difficulty = document.getElementById('difficulty').value;
+        this.hintsRemaining = 3;
+        this.updateHintDisplay();
+        this.generatePuzzle();
+        this.startTimer();
     }
 
     generatePuzzle() {
@@ -172,10 +353,16 @@ class SudokuGame {
             }
         }
 
-        // 隨機移除一些數字創建謎題
-        const cellsToRemove = 45; // 移除45個數字，留下36個
+        // 根據難度決定移除多少個數字
+        let cellsToRemove;
+        switch(this.difficulty) {
+            case 'easy': cellsToRemove = 35; break;
+            case 'medium': cellsToRemove = 45; break;
+            case 'hard': cellsToRemove = 55; break;
+            default: cellsToRemove = 45;
+        }
+
         const positions = [];
-        
         for (let i = 0; i < 9; i++) {
             for (let j = 0; j < 9; j++) {
                 positions.push([i, j]);
@@ -205,8 +392,8 @@ class SudokuGame {
 
         this.updateGivenCells();
         this.updateDisplay();
+        this.setSelectedCell(4, 4); // 重新選中中間格子
         this.clearMessage();
-        this.selectedCell = null;
     }
 
     solveSudoku(board) {
@@ -284,35 +471,57 @@ class SudokuGame {
             }
         }
 
-        this.selectedCell = null;
         this.updateDisplay();
+        this.setSelectedCell(4, 4);
         this.clearMessage();
+    }
+
+    isPuzzleComplete() {
+        for (let i = 0; i < 9; i++) {
+            for (let j = 0; j < 9; j++) {
+                if (this.board[i][j] === 0) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    onPuzzleComplete() {
+        this.stopTimer();
+        const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
+        const minutes = Math.floor(elapsed / 60);
+        const seconds = elapsed % 60;
+        const timeStr = `${minutes}分${seconds}秒`;
         
-        // 移除所有選中狀態
-        document.querySelectorAll('.sudoku-cell').forEach(cell => {
-            cell.classList.remove('selected');
+        this.showMessage(`🎉 恭喜完成！用時: ${timeStr}`, 'success');
+        
+        // 添加完成動畫
+        document.querySelectorAll('.sudoku-cell').forEach((cell, index) => {
+            setTimeout(() => {
+                cell.style.animation = 'pulse 0.6s ease-in-out';
+            }, index * 20);
         });
     }
 
     checkSolution() {
-        let isComplete = true;
         let hasErrors = false;
 
-        // 檢查是否完成和是否有錯誤
+        // 檢查是否有錯誤
         for (let i = 0; i < 9; i++) {
             for (let j = 0; j < 9; j++) {
-                if (this.board[i][j] === 0) {
-                    isComplete = false;
-                } else if (this.hasConflict(i, j, this.board[i][j])) {
+                if (this.board[i][j] !== 0 && this.board[i][j] !== this.solution[i][j]) {
                     hasErrors = true;
+                    break;
                 }
             }
+            if (hasErrors) break;
         }
 
         if (hasErrors) {
-            this.showMessage('有錯誤的數字，請檢查標紅的格子', 'error');
-        } else if (isComplete) {
-            this.showMessage('🎉 恭喜！數獨完成了！', 'success');
+            this.showMessage('有錯誤的數字，請檢查', 'error');
+        } else if (this.isPuzzleComplete()) {
+            this.onPuzzleComplete();
         } else {
             this.showMessage('目前沒有錯誤，請繼續完成', 'success');
         }

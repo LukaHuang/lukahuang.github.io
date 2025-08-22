@@ -13,7 +13,27 @@
         <div class="game-controls">
             <button id="new-game" class="btn">新遊戲</button>
             <button id="reset-game" class="btn">重置</button>
+            <button id="hint-btn" class="btn">提示</button>
             <button id="check-solution" class="btn">檢查答案</button>
+        </div>
+        
+        <div class="game-info">
+            <div class="info-item">
+                <span class="label">難度:</span>
+                <select id="difficulty" class="difficulty-select">
+                    <option value="easy">簡單</option>
+                    <option value="medium" selected>中等</option>
+                    <option value="hard">困難</option>
+                </select>
+            </div>
+            <div class="info-item">
+                <span class="label">提示次數:</span>
+                <span id="hint-count">3</span>
+            </div>
+            <div class="info-item">
+                <span class="label">時間:</span>
+                <span id="timer">00:00</span>
+            </div>
         </div>
         
         <div class="game-status">

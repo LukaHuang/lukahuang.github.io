@@ -35,6 +35,44 @@ h1 {
     margin-bottom: 20px;
 }
 
+.game-info {
+    display: flex;
+    justify-content: space-around;
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 10px;
+    border: 2px solid #e9ecef;
+}
+
+.info-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+}
+
+.label {
+    font-weight: bold;
+    color: #495057;
+    font-size: 14px;
+}
+
+.difficulty-select {
+    padding: 5px 10px;
+    border: 2px solid #ced4da;
+    border-radius: 5px;
+    background: white;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+#hint-count, #timer {
+    font-weight: bold;
+    color: #007bff;
+    font-size: 16px;
+}
+
 .btn {
     background: linear-gradient(45deg, #667eea, #764ba2);
     color: white;
@@ -98,32 +136,67 @@ h1 {
     font-size: 24px;
     font-weight: bold;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.3s ease;
     user-select: none;
+    position: relative;
+    border: 2px solid transparent;
 }
 
 .sudoku-cell:hover {
-    background: #f0f0f0;
+    background: #f8f9fa;
+    transform: scale(1.05);
+    box-shadow: inset 0 0 10px rgba(0, 123, 255, 0.2);
 }
 
 .sudoku-cell.selected {
     background: #e3f2fd;
     color: #1976d2;
+    border: 2px solid #1976d2;
+    box-shadow: 0 0 15px rgba(25, 118, 210, 0.4);
+    transform: scale(1.1);
+}
+
+.sudoku-cell.highlight-same {
+    background: #fff3e0;
+    color: #e65100;
+}
+
+.sudoku-cell.highlight-related {
+    background: #f3e5f5;
 }
 
 .sudoku-cell.given {
     background: #f5f5f5;
     color: #333;
     cursor: default;
+    font-weight: 900;
 }
 
 .sudoku-cell.given:hover {
     background: #f5f5f5;
+    transform: none;
 }
 
 .sudoku-cell.error {
     background: #ffebee;
     color: #d32f2f;
+    animation: shake 0.5s ease-in-out;
+}
+
+.sudoku-cell.correct-input {
+    animation: pulse 0.6s ease-in-out;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); background: #e8f5e8; }
+    100% { transform: scale(1); }
 }
 
 /* 3x3 區塊邊框 */
@@ -173,27 +246,54 @@ h1 {
 
 @media (max-width: 600px) {
     .container {
-        padding: 20px;
+        padding: 15px;
+        max-width: 95%;
     }
     
     h1 {
-        font-size: 2em;
+        font-size: 1.8em;
+        margin-bottom: 20px;
+    }
+    
+    .game-info {
+        flex-direction: column;
+        gap: 10px;
+        padding: 10px;
+    }
+    
+    .info-item {
+        flex-direction: row;
+        justify-content: space-between;
+        width: 100%;
     }
     
     .sudoku-board {
         width: 300px;
         height: 300px;
+        margin-bottom: 20px;
     }
     
     .sudoku-cell {
-        font-size: 16px;
+        font-size: 14px;
     }
     
     .number-pad {
         grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+    }
+    
+    .number-btn {
+        padding: 12px;
+        font-size: 16px;
     }
     
     .number-btn[data-number="0"] {
         grid-column: 2 / 4;
+    }
+    
+    .btn {
+        padding: 10px 16px;
+        font-size: 14px;
+        margin: 3px;
     }
 }
